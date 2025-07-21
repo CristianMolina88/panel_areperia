@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPA La Arepería</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f9f9f9;
+      font-family: Arial, sans-serif;
+    }
+    header {
+      background: #FFD700;
+      color: #000;
+      padding: 1rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    header img {
+      height: 40px;
+      width: auto;
+      margin-right: 10px;
+    }
+    header span {
+      font-weight: bold;
+    }
+    #reloj {
+      position: absolute;
+      right: 20px;
+      font-size: 1.8rem;
+      font-weight: bold;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #f0f0f0;
+    }
+    .insumos-table th, .insumos-table td {
+      border: 1px solid #ddd;
+      padding: 4px;
+      font-size: 0.85rem;
+    }
+    .insumos-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+    }
+    #subtitulo {
+      font-weight: bold;
+      font-size: 1.3rem;
+      padding: 1rem;
+      text-align: center;
+    }
+    footer {
+      background: #f5f5f5;
+      color: #666;
+      padding: 1rem;
+      text-align: center;
+      font-size: 0.9rem;
+      border-top: 1px solid #ddd;
+      margin-top: 2rem;
+    }
+    .ultima-actualizacion {
+      font-weight: bold;
+      color: #333;
+    }
+    .loading {
+      text-align: center;
+      padding: 2rem;
+      font-size: 1.2rem;
+      color: #666;
+    }
+    .error {
+      background: #ffebee;
+      color: #c62828;
+      padding: 1rem;
+      margin: 1rem;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .status-alistamiento {
+      background: linear-gradient(to right, #2196F3 25%, transparent 25%);
+      font-weight: bold;
+      color: #000;
+    }
+    .status-coccion {
+      background: linear-gradient(to right, #FFEB3B 70%, transparent 70%);
+      font-weight: bold;
+      color: #000;
+    }
+    .status-enfriamiento {
+      background: linear-gradient(to right, #4CAF50 100%, transparent 100%);
+      font-weight: bold;
+      color: #000;
+    }
+    .status-sin-info {
+      background: #ffebee;
+      color: #d32f2f;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="Logo.png" alt="Logo">
+    <span>PANEL DE PRODUCCIÓN LA AREPERÍA ORIGINAL</span>
+    <div id="reloj">--:--</div>
+  </header>
+
+  <div id="subtitulo"></div>
+  <main>
+    <div id="loading" class="loading">Cargando datos...</div>
+    <div id="error" class="error" style="display: none;"></div>
+    <table id="mainTable" style="display: none;">
+      <thead>
+        <tr>
+          <th>PROCESO</th>
+          <th>HORA INICIAL</th>
+          <th>MINUTOS EN PROCESO</th>
+          <th>STATUS</th>
+          <th>ESPERADO</th>
+          <th colspan="3">INSUMOS</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </main>
+
+  <footer>
+    <div class="ultima-actualizacion">
+      Última actualización: <span id="ultima-actualizacion">Cargando...</span>
+    </div>
+    <div>
+      Elaborado por Cristian Molina para La Arepería Original SAS – Actualización automática cada 30 segundos
+    </div>
+  </footer>
+
+  <script>
+    // 📌 Reloj en formato 12h para hora de Colombia
+    function actualizarReloj() {
+      const ahora = new Date();
+      const opciones = {
+        timeZone: 'America/Bogota',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      };
+      const horaColombia = new Intl.DateTimeFormat('es-CO', opciones).format(ahora);
+      document.getElementById('reloj').textContent = horaColombia;
+    }
+    actualizarReloj();
+    setInterval(actualizarReloj, 1000 * 60); // actualiza cada minuto
+
+    function formatoHora(valor) {
+      if (!valor) return "";
+      if (typeof valor === 'string' && /^\d{2}:\d{2}$/.test(valor)) {
+        return valor;
+      }
+      const fecha = new Date(valor);
+      if (isNaN(fecha)) return "";
+      const h = fecha.getHours().toString().padStart(2, '0');
+      const m = fecha.getMinutes().toString().padStart(2, '0');
+      return `${h}:${m}`;
+    }
+
+    function formatoNumero(num) {
+      const n = parseFloat(num);
+      if (isNaN(n)) return num || "";
+      return n.toFixed(2);
+    }
+
+    function aplicarEstiloStatus(status) {
+      if (!status || status.trim() === "") return 'status-sin-info';
+      const s = status.toUpperCase();
+      if (s.includes('ALISTAMIENTO')) return 'status-alistamiento';
+      if (s.includes('COCCION')) return 'status-coccion';
+      if (s.includes('EMPAQUE') || s.includes('ENFRIAMIENTO')) return 'status-enfriamiento';
+      return 'status-sin-info';
+    }
+
+    function actualizarHoraActualizacion() {
+      const ahora = new Date();
+      const fecha = ahora.toLocaleDateString('es-CO', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      const hora = ahora.toLocaleTimeString('es-CO', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+      document.getElementById('ultima-actualizacion').textContent = `${fecha} a las ${hora}`;
+    }
+
+    async function cargarDatos() {
+      try {
+        const resp = await fetch("https://script.google.com/macros/s/AKfycbypGALX5nChkdFd8aBritkNWX-8s9wOWtGPYDUuldwqYUkigsyktFwpWaGDFVKR524/exec");
+        if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+        const datos = await resp.json();
+        if (!datos || datos.length === 0) throw new Error("Sin datos");
+
+        document.getElementById("subtitulo").textContent = datos[0][0] || "Panel de Producción";
+        const tbody = document.querySelector("tbody");
+        tbody.innerHTML = "";
+
+        let i = 2;
+        while (i < datos.length) {
+          const fila = datos[i];
+          if (!fila || !fila[0]) { i++; continue; }
+
+          const proceso = fila[0] || "";
+          const horaInicial = formatoHora(fila[2]);
+          const minutosProceso = formatoHora(fila[3]);
+          const status = fila[4] || "";
+          const esperado = formatoNumero(fila[5]);
+
+          let insumosHTML = "<table class='insumos-table'><tr><th>INSUMO</th><th>CANTIDAD</th><th>UNIDAD</th></tr>";
+          let j = i;
+          let insumosEncontrados = false;
+          while (j < datos.length && (datos[j][0] === "" || j === i)) {
+            const insumo = datos[j][6];
+            const cantidad = formatoNumero(datos[j][7]);
+            const unidad = datos[j][8] || "";
+            if (insumo) {
+              insumosHTML += `<tr><td>${insumo}</td><td>${cantidad}</td><td>${unidad}</td></tr>`;
+              insumosEncontrados = true;
+            }
+            j++;
+            if (j - i >= 12) break;
+            if (datos[j] && datos[j][0]) break;
+          }
+          if (!insumosEncontrados) {
+            insumosHTML += "<tr><td colspan='3'>Sin insumos registrados</td></tr>";
+          }
+          insumosHTML += "</table>";
+
+          const tr = document.createElement("tr");
+          const statusClass = aplicarEstiloStatus(status);
+          tr.innerHTML = `
+            <td>${proceso}</td>
+            <td>${horaInicial}</td>
+            <td>${minutosProceso}</td>
+            <td class="${statusClass}">${status}</td>
+            <td>${esperado}</td>
+            <td colspan="3">${insumosHTML}</td>
+          `;
+          tbody.appendChild(tr);
+          i = j;
+        }
+
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("error").style.display = "none";
+        document.getElementById("mainTable").style.display = "table";
+        actualizarHoraActualizacion();
+      } catch (err) {
+        console.error("Error al cargar datos:", err);
+        document.getElementById("loading").style.display = "none";
+        const errorDiv = document.getElementById("error");
+        errorDiv.textContent = `Error al cargar los datos: ${err.message}`;
+        errorDiv.style.display = "block";
+      }
+    }
+
+    cargarDatos();
+    setInterval(cargarDatos, 30000);
+  </script>
+</body>
+</html>
